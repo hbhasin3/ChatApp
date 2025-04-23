@@ -2,7 +2,6 @@
 //  NetworkServiceprotocol.swift
 //  NetworkConnection
 //
-//  Created by GrandGaming.com.
 //
 
 import Foundation

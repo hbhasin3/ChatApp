@@ -35,7 +35,7 @@ class PieSocketRoomClient: ObservableObject {
     
 
 
-    init(delegate: PieSocketRoomClientDelegate? ,roomName: String, channelId: String, notifySelf: Bool = true, networkMonitor: any NetworkMonitorProtocol = NetworkMonitor()) {
+    init(delegate: PieSocketRoomClientDelegate? ,roomName: String, channelId: String, notifySelf: Bool = false, networkMonitor: any NetworkMonitorProtocol = NetworkMonitor()) {
         self.delegate = delegate
         self.roomName = roomName
         self.channelId = channelId
@@ -71,6 +71,8 @@ class PieSocketRoomClient: ObservableObject {
             webSocketTask.send(text) { error in
                 if let error = error {
                     print("Resend failed: \(error)")
+                } else {
+                    self.markAsSent(message)
                 }
             }
         }
@@ -105,6 +107,7 @@ class PieSocketRoomClient: ObservableObject {
         if !networkMonitor.isConnected {
             self.queue()
             self.delegate?.pieSocketClient(didReceiveError: APIError.custom(message: "The Internet connection appears to be offline"))
+            return
         }
         
         guard let webSocketTask = webSocketTask else {
@@ -117,6 +120,8 @@ class PieSocketRoomClient: ObservableObject {
                 print("Send error: \(error)")
                 self?.delegate?.pieSocketClient(didReceiveError: error)
                 self?.queueMessage(message)
+            } else {
+                self?.addToMessages(message: message)
             }
         }
     }
@@ -135,11 +140,8 @@ class PieSocketRoomClient: ObservableObject {
                 switch message {
                 case .string(let text):
                     self.unsendMessage = nil
-                    if let unsend = self.unsentMessages.filter({ $0.message == text }).first {
-                        self.markAsSent(unsend)
-                    } else {
-                        addToMessages(message: ChatMessage(botName: self.roomName, message: text))
-                    }
+                    addToMessages(message: ChatMessage(botName: self.roomName, message: text))
+                    
                     
                 default:
                     break

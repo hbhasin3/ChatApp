@@ -25,15 +25,13 @@ class PieSocketRoomClient: ObservableObject {
     private var roomName: String
     private var unsendMessage: String?
     
-    private let networkMonitor: any NetworkMonitorProtocol
+    private var networkMonitor: any NetworkMonitorProtocol
     
     private var unsentMessages: [ChatMessage] = []
+    
     weak var delegate: PieSocketRoomClientDelegate?
 
     @Published var combinedMessages: [ChatMessage] = []
-
-    
-
 
     init(delegate: PieSocketRoomClientDelegate? ,roomName: String, channelId: String, notifySelf: Bool = false, networkMonitor: any NetworkMonitorProtocol = NetworkMonitor()) {
         self.delegate = delegate
@@ -49,33 +47,18 @@ class PieSocketRoomClient: ObservableObject {
         // Load unsent messages (persisted)
         self.unsentMessages = self.combinedMessages.filter({ $0.isQueued })
         
-
-    }
-    
-    private func markAsSent(_ message: ChatMessage) {
-        // Remove from unsent
-        if let index = unsentMessages.firstIndex(of: message) {
-            unsentMessages.remove(at: index)
-            if let sentMessagesIndex = combinedMessages.firstIndex(of: message) {
-                combinedMessages[sentMessagesIndex].isQueued = false
-            }
-        }
-    }
-    
-    func resendUnsentMessages() {
-        guard let webSocketTask = webSocketTask else { return }
-
-        for message in unsentMessages {
+        // Network Monitor to reconnect and resend the queued messages
+        self.networkMonitor.onStatusChange = { isConnected in
+            print("Connection changed: \(isConnected ? "Online" : "Offline")")
             
-            let text = URLSessionWebSocketTask.Message.string(message.message)
-            webSocketTask.send(text) { error in
-                if let error = error {
-                    print("Resend failed: \(error)")
-                } else {
-                    self.markAsSent(message)
-                }
+            if isConnected {
+                self.reconnect()
+                
             }
         }
+
+        self.networkMonitor.startMonitoring()
+
     }
 
     func connect() {
@@ -87,9 +70,10 @@ class PieSocketRoomClient: ObservableObject {
         webSocketTask = urlSession.webSocketTask(with: url)
         webSocketTask?.resume()
 
-        resendUnsentMessages()
+        
         startPinging()
         listen()
+        resendUnsentMessages()
         print("Connected to channel \(channelId)")
     }
 
@@ -110,7 +94,6 @@ class PieSocketRoomClient: ObservableObject {
             temp.isQueued = true
             self.queueMessage(temp)
             self.delegate?.pieSocketClient(didReceiveError: APIError.custom(message: "The Internet connection appears to be offline"))
-            self.reconnect()
             return
         }
         
@@ -118,7 +101,7 @@ class PieSocketRoomClient: ObservableObject {
             temp.isQueued = true
             self.queueMessage(temp)
             self.delegate?.pieSocketClient(didReceiveError: APIError.custom(message: "The Internet connection appears to be offline"))
-            self.reconnect()
+            
             return
         }
         
@@ -128,13 +111,35 @@ class PieSocketRoomClient: ObservableObject {
                 self?.delegate?.pieSocketClient(didReceiveError: error)
                 temp.isQueued = true
                 self?.queueMessage(temp)
-                self?.reconnect()
             } else {
                 self?.addToMessages(message: message)
             }
         }
     }
+    
+    func setInitialMessages(_ messages: [ChatMessage]) {
+        self.combinedMessages = messages
+    }
+    
+    func resendUnsentMessages() {
+        guard networkMonitor.isConnected, let webSocketTask = webSocketTask else { return }
 
+        for message in unsentMessages {
+            
+            let text = URLSessionWebSocketTask.Message.string(message.message)
+            webSocketTask.send(text) { error in
+                if let error = error {
+                    print("Resend failed: \(error)")
+                } else {
+                    self.markAsSent(message)
+                }
+            }
+        }
+    }
+}
+
+//MARK: Helper Methods
+extension PieSocketRoomClient {
     private func listen() {
         webSocketTask?.receive { [weak self] result in
             guard let self = self else { return }
@@ -142,7 +147,6 @@ class PieSocketRoomClient: ObservableObject {
             switch result {
             case .failure(let error):
                 print("Receive error: \(error)")
-                self.reconnect()
             case .success(let message):
                 switch message {
                 case .string(let text):
@@ -193,18 +197,32 @@ class PieSocketRoomClient: ObservableObject {
     private func addMessage(message: ChatMessage) {
         self.combinedMessages.append(message)
     }
-    
-    func setInitialMessages(_ messages: [ChatMessage]) {
-        self.combinedMessages = messages
+
+    private func addToQueue(message: ChatMessage) {
+        self.unsentMessages.append(message)
     }
     
     private func queueMessage(_ message: ChatMessage) {
         DispatchQueue.main.async {
-            if let unsend = self.unsendMessage {
+            if let _ = self.unsendMessage {
                 self.addMessage(message: message)
-                self.queueMessage(message)
+                self.addToQueue(message: message)
                 self.unsendMessage = nil
                 
+            }
+        }
+    }
+    
+    private func markAsSent(_ message: ChatMessage) {
+        DispatchQueue.main.async {
+            // Remove from unsent
+            if let index = self.unsentMessages.firstIndex(of: message) {
+                self.unsentMessages.remove(at: index)
+                if let sentMessagesIndex = self.combinedMessages.firstIndex(of: message) {
+                    var msg = message
+                    msg.isQueued = false
+                    self.combinedMessages[sentMessagesIndex] = msg
+                }
             }
         }
     }

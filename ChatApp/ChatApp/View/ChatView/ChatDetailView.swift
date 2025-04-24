@@ -20,28 +20,7 @@ struct ChatDetailView: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 12) {
                         ForEach(messagesForBot()) { msg in
-                            HStack(alignment: .top) {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(msg.message)
-                                        .font(.body)
-                                        .padding(8)
-                                        .background(Color.gray.opacity(0.1))
-                                        .cornerRadius(10)
-
-                                    Text(msg.timestamp, style: .time)
-                                        .font(.caption)
-                                        .foregroundColor(.gray)
-                                }
-
-                                Spacer()
-
-                                if msg.isQueued {
-                                    Text("Queued")
-                                        .font(.caption2)
-                                        .foregroundColor(.orange)
-                                }
-                            }
-                            .id(msg.id)
+                            MessageView(msg: msg)
                         }
                     }
                     .padding()

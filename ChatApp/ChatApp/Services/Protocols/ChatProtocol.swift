@@ -12,7 +12,8 @@ protocol ChatProtocol {
     func messages(for roomName: String) -> [ChatMessage]
     func disconnectRoom(_ roomName: String)
     func disconnectAll()
-    var roomsPublisher: Published<[String: PieSocketRoomClient]>.Publisher { get }
     func markMessageAsRead(messageId: UUID?, inRoom room: String)
+    
+    var roomsPublisher: Published<[String: PieSocketRoomClient]>.Publisher { get }
     var delegate: ChatManagerDelegate? { get set }
 }

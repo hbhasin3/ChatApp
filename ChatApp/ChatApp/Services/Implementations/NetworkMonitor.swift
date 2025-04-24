@@ -4,21 +4,40 @@
 //
 //  Created by Harsh Bhasin on 22/04/25.
 //
-import Network
+
 import Foundation
+import Network
 
+final class NetworkMonitor: NetworkMonitorProtocol {
+    private let monitor = NWPathMonitor()
+    private let queue = DispatchQueue(label: "NetworkMonitorQueue")
 
-class NetworkMonitor: NetworkMonitorProtocol {
-    @Published private(set) var isConnected: Bool = true
-    private var monitor = NWPathMonitor()
-
-    init() {
-        monitor.pathUpdateHandler = { [weak self] path in
-            DispatchQueue.main.async {
-                self?.isConnected = path.status == .satisfied
+    private(set) var isConnected: Bool = true {
+        didSet {
+            if oldValue != isConnected {
+                print("Network status changed: \(isConnected)")
+                DispatchQueue.main.async {
+                    self.onStatusChange?(self.isConnected)
+                }
             }
         }
-        monitor.start(queue: .main)
-        
+    }
+
+    var onStatusChange: ((Bool) -> Void)?
+
+    func startMonitoring() {
+        monitor.pathUpdateHandler = { [weak self] path in
+            guard let self else { return }
+            let newStatus = path.status == .satisfied
+            self.isConnected = newStatus
+        }
+
+        monitor.start(queue: queue)
+        print("Started network monitoring")
+    }
+
+    func stopMonitoring() {
+        monitor.cancel()
+        onStatusChange = nil
     }
 }

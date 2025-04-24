@@ -46,6 +46,14 @@ struct ChatDetailView: View {
                     }
                     .padding()
                 }
+                .onAppear {
+                    //Scroll to the last message on appear
+                    if let last = viewModel.chatMessages[selectedBot]?.combinedMessages.last {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            proxy.scrollTo(last.id, anchor: .bottom)
+                        }
+                    }
+                }
                 .onChange(of: viewModel.chatMessages[selectedBot]?.combinedMessages.count ?? 0) { _ in
                     if let last = messagesForBot().last {
                         proxy.scrollTo(last.id, anchor: .bottom)

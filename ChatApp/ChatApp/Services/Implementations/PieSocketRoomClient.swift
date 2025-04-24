@@ -104,14 +104,21 @@ class PieSocketRoomClient: ObservableObject {
         self.unsendMessage = message.message
         let text = URLSessionWebSocketTask.Message.string(message.message)
         
+        var temp = message
+        
         if !networkMonitor.isConnected {
-            self.queue()
+            temp.isQueued = true
+            self.queueMessage(temp)
             self.delegate?.pieSocketClient(didReceiveError: APIError.custom(message: "The Internet connection appears to be offline"))
+            self.reconnect()
             return
         }
         
         guard let webSocketTask = webSocketTask else {
-            self.queueMessage(message)
+            temp.isQueued = true
+            self.queueMessage(temp)
+            self.delegate?.pieSocketClient(didReceiveError: APIError.custom(message: "The Internet connection appears to be offline"))
+            self.reconnect()
             return
         }
         
@@ -119,7 +126,9 @@ class PieSocketRoomClient: ObservableObject {
             if let error = error {
                 print("Send error: \(error)")
                 self?.delegate?.pieSocketClient(didReceiveError: error)
-                self?.queueMessage(message)
+                temp.isQueued = true
+                self?.queueMessage(temp)
+                self?.reconnect()
             } else {
                 self?.addToMessages(message: message)
             }
@@ -133,14 +142,12 @@ class PieSocketRoomClient: ObservableObject {
             switch result {
             case .failure(let error):
                 print("Receive error: \(error)")
-                
-                self.queue()
                 self.reconnect()
             case .success(let message):
                 switch message {
                 case .string(let text):
                     self.unsendMessage = nil
-                    addToMessages(message: ChatMessage(botName: self.roomName, message: text))
+                    self.addToMessages(message: ChatMessage(botName: self.roomName, message: text))
                     
                     
                 default:
@@ -192,19 +199,13 @@ class PieSocketRoomClient: ObservableObject {
     }
     
     private func queueMessage(_ message: ChatMessage) {
-        unsentMessages.append(message)
-    }
-    
-    private func queue() {
         DispatchQueue.main.async {
             if let unsend = self.unsendMessage {
-                let message = ChatMessage(botName: self.roomName, message: unsend, isQueued: true)
                 self.addMessage(message: message)
                 self.queueMessage(message)
                 self.unsendMessage = nil
                 
             }
         }
-        
     }
 }

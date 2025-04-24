@@ -36,14 +36,8 @@ class ChatViewModel: ObservableObject {
 
     func sendMessage(roomid: Int, bot: String, text: String) {
         var msg = ChatMessage(id: UUID(), botName: bot, message: text, timestamp: Date(), isUnread: false)
-
-        if networkMonitor.isConnected {
-            msg.isQueued = false
-            chatManager.send(message: msg)
-        } else {
-            msg.isQueued = true
-            chatManager.send(message: msg)
-        }
+        chatManager.send(message: msg)
+        
         
     }
     

@@ -19,17 +19,17 @@ struct ChatListView: View {
                         NavigationLink(destination: ChatDetailView(viewModel: viewModel, selectedBot: bot), tag: bot, selection: $selectedBot) {
                             RoomView(viewModel: self.viewModel, bot: bot)
                         }
-//                        .onChange(of: selectedBot) { oldValue, newValue in
-//                            viewModel.markMessageAsRead(messageId: lastMessage(for: bot)?.id, inRoom: bot)
-//                        }
+                        .onChange(of: selectedBot) { oldValue, newValue in
+                            viewModel.markMessageAsRead(messageId: lastMessage(for: bot)?.id, inRoom: bot)
+                        }
                         
                     }
                 }
-//                .refreshable {
-//                    Task {
-//                        self.viewModel.observeRoomsAndMessages(loader: .refresh)
-//                    }
-//                }
+                .refreshable {
+                    Task {
+                        self.viewModel.observeRoomsAndMessages(loader: .refresh)
+                    }
+                }
                 .navigationTitle("Chats")
                 .alert(item: $viewModel.apiError) { error in
                     Alert(
